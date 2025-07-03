@@ -1,5 +1,7 @@
 import json
 import os
+from PIL import Image, ImageDraw, UnidentifiedImageError
+from pystray import Icon, MenuItem, Menu
 
 
 # config.json, token.json, businesdate.json
@@ -101,6 +103,72 @@ class KisApi:
             with open(self.json_business_date_path, "r", encoding="utf-8") as f:
                 self.business_date_data = json.load(f)
 
+class UsaTray:
+    '''
+    main 클래스
+    유저 인터페이스: 시스템 트레이
+    매매 자동화
+    매매 판단 알고리즘
+    '''
+    def __init__(self, app_name:str = "u-sa", icon_path: str = "./favicon.ico"):
+        """
+        Name:생성자
+        Args:
+            app_name (str): 앱 이름 u-sa
+            icon_path (str): 트레이 아이콘 이미지 경로 ./favicon.ico
+        """
+        print("UsaTray __init__")
+
+        # KisApi 생성
+        self.kis_api = KisApi("1","1","-")
+
+        self.app_name = app_name
+        self.icon_path = icon_path
+        image = self._get_icon_image()
+
+        # 트레이 메뉴 구성
+        menu = Menu(
+            MenuItem('테스트', self.do_test),
+            MenuItem('', None, enabled=False),
+            MenuItem('종료', self.stop),
+        )
+
+        # 트레이 아이콘 생성
+        self.icon = Icon(name=app_name, title=app_name, icon=image, menu=menu)
+
+    def _get_icon_image(self):
+        try:
+            return Image.open(self.icon_path)
+        except (FileNotFoundError, UnidentifiedImageError):
+            print(f"아이콘 파일을 찾을 수 없어 기본 아이콘을 사용합니다: {self.icon_path}")
+            
+            # 기본 아이콘 생성 (흰 배경)
+            image = Image.new('RGB', (64, 64), (255, 255, 255))
+            draw = ImageDraw.Draw(image)
+
+            # 우상향 화살표 (빨간색)
+            # 몸통 (대각선)
+            draw.line((16, 48, 48, 16), fill=(255, 0, 0), width=5)
+
+            # 화살촉 (역 V자)
+            draw.line((40, 16, 48, 16), fill=(255, 0, 0), width=5)
+            draw.line((48, 16, 48, 24), fill=(255, 0, 0), width=5)
+
+            return image
+
+    def do_test(self, icon, item):
+        print("테스트 기능 실행")
+
+    def stop(self, icon, item):
+        print("종료합니다.")
+        self.icon.stop()
+
+    def run(self):
+        print("시작합니다.")
+        self.icon.run()
+        
 if __name__ == '__main__':
-    print("init")
-    kis_api = KisApi("1","1","-")
+    print("u-sa-v0001")
+    print("__main__")
+    usa_tray = UsaTray()
+    usa_tray.run()
