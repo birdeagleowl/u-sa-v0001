@@ -16,35 +16,35 @@ class KisApi:
     '''
     한국투자증권 REST API
     '''
-    def __init__(self, api_key: str, api_secret: str, acc_no: str):
+    def __init__(self, app_key: str, app_secret: str, account_no: str):
         """
         Name:생성자
         Args:
-            api_key (str): 발급받은 API key
-            api_secret (str): 발급받은 API secret
-            acc_no (str): 계좌번호 체계의 앞 8자리-뒤 2자리
+            app_key (str): 발급받은 API key
+            app_secret (str): 발급받은 API secret
+            account_no (str): 계좌번호 체계의 앞 8자리-뒤 2자리
         """
         print("KisApi __init__")
 
         # 필수 값 검사
-        if not api_key:
+        if not app_key:
             raise ValueError("API Key는 비어 있을 수 없습니다.")
-        if not api_secret:
+        if not app_secret:
             raise ValueError("API Secret은 비어 있을 수 없습니다.")
-        if '-' not in acc_no:
+        if '-' not in account_no:
             raise ValueError("계좌번호 형식이 잘못되었습니다. 예: '12345678-01'")
         
         # base url
         self.base_url = BASE_URL
 
         # api key
-        self.api_key = api_key
-        self.api_secret = api_secret
+        self.app_key = app_key
+        self.app_secret = app_secret
 
         # account number
-        self.acc_no = acc_no
-        self.acc_no_prefix = acc_no.split('-')[0]
-        self.acc_no_postfix = acc_no.split('-')[1]
+        self.account_no = account_no
+        self.account_no_prefix = account_no.split('-')[0]
+        self.account_no_postfix = account_no.split('-')[1]
 
         # json file
         self.json_token_path = JSON_TOKEN_PATH
@@ -119,12 +119,19 @@ class UsaTray:
         """
         print("UsaTray __init__")
 
+        # json file
+        self.json_config_path = JSON_CONFIG_PATH
+        self.app_key = ""
+        self.app_secret = ""
+        self.account_no = ""
+        self.load_json_config()
+        
         # KisApi 생성
-        self.kis_api = KisApi("1","1","-")
+        self.kis_api = KisApi(app_key=self.app_key,app_secret=self.app_secret,account_no=self.account_no)
 
         self.app_name = app_name
         self.icon_path = icon_path
-        image = self._get_icon_image()
+        image = self.get_icon_image()
 
         # 트레이 메뉴 구성
         menu = Menu(
@@ -136,7 +143,27 @@ class UsaTray:
         # 트레이 아이콘 생성
         self.icon = Icon(name=app_name, title=app_name, icon=image, menu=menu)
 
-    def _get_icon_image(self):
+    def load_json_config(self):
+        if os.path.exists(self.json_config_path):
+            with open(self.json_config_path, "r", encoding="utf-8") as f:
+                config_data = json.load(f)
+                self.app_key = config_data.get("app_key","")
+                self.app_secret = config_data.get("app_secret","")
+                self.account_no = config_data.get("account_no","")
+        else:
+            raise FileNotFoundError("config.json 파일이 없습니다.")
+        
+        # 필수 값 검사
+        if not self.app_key or not self.app_key.strip():
+            raise ValueError("APP Key는 비어 있을 수 없습니다. app_key")
+        if not self.app_secret or not self.app_secret.strip():
+            raise ValueError("APP Secret은 비어 있을 수 없습니다. app_secret")
+        if not self.account_no or not self.account_no.strip():
+            raise ValueError("Account No 계좌번호는 비어 있을 수 없습니다. account_no")
+        if '-' not in self.account_no:
+            raise ValueError("계좌번호 형식이 잘못되었습니다. account_no 예: '12345678-01'")
+            
+    def get_icon_image(self):
         try:
             return Image.open(self.icon_path)
         except (FileNotFoundError, UnidentifiedImageError):
@@ -170,5 +197,9 @@ class UsaTray:
 if __name__ == '__main__':
     print("u-sa-v0001")
     print("__main__")
-    usa_tray = UsaTray()
-    usa_tray.run()
+    try:
+        usa_tray = UsaTray()
+        usa_tray.run()
+    except Exception as e:
+        print(f"[오류] 프로그램을 종료합니다: {e}")
+        
