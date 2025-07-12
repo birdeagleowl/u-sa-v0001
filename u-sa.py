@@ -2,7 +2,12 @@ import json
 import os
 from PIL import Image, ImageDraw, UnidentifiedImageError
 from pystray import Icon, MenuItem, Menu
-
+import schedule
+import threading
+import time # sleep
+from datetime import datetime
+from datetime import time as dtime
+from zoneinfo import ZoneInfo
 
 # config.json, token.json, businesdate.json
 JSON_CONFIG_PATH = "config.json" 
@@ -118,16 +123,25 @@ class UsaTray:
             icon_path (str): 트레이 아이콘 이미지 경로 ./favicon.ico
         """
         print("UsaTray __init__")
+        # schedule loop status run or stop
+        # False = stop or quit
+        # True = run
+        self.schedule_is_run = False
 
         # json file
         self.json_config_path = JSON_CONFIG_PATH
         self.app_key = ""
         self.app_secret = ""
         self.account_no = ""
+        self.symbols = None
         self.load_json_config()
         
         # KisApi 생성
-        self.kis_api = KisApi(app_key=self.app_key,app_secret=self.app_secret,account_no=self.account_no)
+        self.kis_api = KisApi(
+            app_key=self.app_key,
+            app_secret=self.app_secret,
+            account_no=self.account_no
+        )
 
         self.app_name = app_name
         self.icon_path = icon_path
@@ -136,6 +150,8 @@ class UsaTray:
         # 트레이 메뉴 구성
         menu = Menu(
             MenuItem('테스트', self.do_test),
+            MenuItem('', None, enabled=False),
+            MenuItem('잔고조회', self.do_balance),
             MenuItem('', None, enabled=False),
             MenuItem('종료', self.stop),
         )
@@ -150,6 +166,7 @@ class UsaTray:
                 self.app_key = config_data.get("app_key","")
                 self.app_secret = config_data.get("app_secret","")
                 self.account_no = config_data.get("account_no","")
+                self.symbols = config_data.get("symbols",None)
         else:
             raise FileNotFoundError("config.json 파일이 없습니다.")
         
@@ -162,6 +179,8 @@ class UsaTray:
             raise ValueError("Account No 계좌번호는 비어 있을 수 없습니다. account_no")
         if '-' not in self.account_no:
             raise ValueError("계좌번호 형식이 잘못되었습니다. account_no 예: '12345678-01'")
+        if self.symbols is None or not self.symbols:
+            raise KeyError("종목 코드는 비어 있을 수 없습니다. symbols")
             
     def get_icon_image(self):
         try:
@@ -183,16 +202,51 @@ class UsaTray:
 
             return image
 
-    def do_test(self, icon, item):
-        print("테스트 기능 실행")
+    def run(self):
+        # 현재 시간 (서울 기준)
+        now = datetime.now(ZoneInfo("Asia/Seoul"))
+        print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] 시작합니다")
 
-    def stop(self, icon, item):
-        print("종료합니다.")
+        # scheudle에서 실행할 작업 지정
+        # 10분마다 작업
+        schedule.every(10).minutes.do(self.do_trading)
+
+        # schedule 상태
+        self.schedule_is_run = True
+
+        # schedule용 쓰레드 실행
+        task_thread = threading.Thread(target=self.run_schedule)
+        task_thread.daemon = True # 메인 스레드가 종료되면 함께 종료
+        task_thread.start()
+
+        # 트레이
+        self.icon.run()
+
+    def run_schedule(self):
+        print("스케줄 실행.")
+        # schedule 루프: 주기적인 작업을 실행
+        while self.schedule_is_run:
+            schedule.run_pending() # 실행해야 할 작업이 있는지 확인
+            time.sleep(1)  # 반드시 있어야 함 (CPU 낭비 방지)
+        
+
+    def stop(self):
+        # 현재 시간 (서울 기준)
+        now = datetime.now(ZoneInfo("Asia/Seoul"))
+        print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] 종료합니다")
+        self.schedule_is_run = False
         self.icon.stop()
 
-    def run(self):
-        print("시작합니다.")
-        self.icon.run()
+    def do_test(self):
+        print("테스트 기능 실행")
+
+    def do_balance(self):
+        print("잔고조회 실행")
+
+    def do_trading(self):
+        # 현재 시간 (서울 기준)
+        now = datetime.now(ZoneInfo("Asia/Seoul"))
+        print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] 자동매매 실행")
         
 if __name__ == '__main__':
     print("u-sa-v0001")
