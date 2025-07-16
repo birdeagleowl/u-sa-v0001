@@ -8,6 +8,7 @@ import time # sleep
 from datetime import datetime
 from datetime import time as dtime
 from zoneinfo import ZoneInfo
+import requests
 
 # config.json, token.json, businesdate.json
 JSON_CONFIG_PATH = "config.json" 
@@ -107,6 +108,188 @@ class KisApi:
         else:
             with open(self.json_business_date_path, "r", encoding="utf-8") as f:
                 self.business_date_data = json.load(f)
+    
+    def get_access_token(self) -> bool:
+        """
+        Name:접근토큰발급
+        """
+        path = "oauth2/tokenP"
+        url = f"{self.base_url}/{path}"
+
+        headers = {"content-type": "application/json"}
+        data = {
+            "grant_type": "client_credentials",
+            "appkey": self.app_key,
+            "appsecret": self.app_secret
+        }
+
+        if self.is_expired():
+
+            # 토큰 발급
+            resp = requests.post(url, headers=headers, data=json.dumps(data))
+            resp_status_code = resp.status_code
+            if resp_status_code == 200: # 토큰 정상발급
+                # 토큰 추출
+                resp_access_token = resp.json()["access_token"]
+                self.access_token_token_expired = resp.json()["access_token_token_expired"]
+                self.access_token = resp_access_token
+                # header에 지정할 때 Bearer를 추가 해야 하는데 여기서 한다.
+                # Bearer를 추가하는 경우는 authorization
+                # Bearer가 없는 경우는 access_token
+                self.authorization = f'Bearer {resp_access_token}'
+
+                with open(self.json_token_path, "w", encoding="utf-8") as f:
+                        json.dump({
+                            "authorization": self.authorization,
+                            "access_token": self.access_token,
+                            "access_token_token_expired": self.access_token_token_expired
+                        }, f, indent=2, ensure_ascii=False)
+                
+                
+                return True
+            else:
+                self.authorization = ""
+                self.access_token = ""
+                self.access_token_token_expired = ""
+                return False
+        else:
+            return True
+    
+    def is_expired(self) -> bool:
+        try:
+            if not self.access_token or not self.access_token.strip():
+                return True
+            
+            # 2025-05-20 14:10:40 한국시간이 기준이다.
+            now_dt = datetime.now(ZoneInfo("Asia/Seoul"))
+            exp_dt = datetime.strptime(self.access_token_token_expired, '%Y-%m-%d %H:%M:%S')
+            exp_dt = exp_dt.replace(tzinfo=ZoneInfo("Asia/Seoul"))
+            return now_dt > exp_dt
+            
+        except Exception:
+            # 예외 발생 시 만료로 간주
+            return True
+
+    # [국내주식] 주문/계좌
+    def _get_domestic_balance(self, ctx_area_fk100: str = "", ctx_area_nk100: str = "") -> dict:
+        """
+        Name:주식잔고조회
+        Args:
+            ctx_area_fk100 (str): 연속조회검색조건100
+            공란 : 최초 조회시 
+            이전 조회 Output CTX_AREA_FK100 값 : 다음페이지 조회시(2번째부터)
+            ctx_areak_nk100 (str): 연속조회키100
+        Returns:
+            실전: 최대 50건 이후 연속조회
+            모의: 최대 20건 이후 연속조회
+            dict: _description_
+        """
+        path = "/uapi/domestic-stock/v1/trading/inquire-balance"
+        url = f"{self.base_url}{path}"
+        headers = {
+           "content-type": "application/json",
+           "authorization": self.authorization,
+           "appKey": self.app_key,
+           "appSecret": self.app_secret,
+           "tr_id": "TTTC8434R"
+        }
+        params = {
+            'CANO': self.account_no_prefix,
+            'ACNT_PRDT_CD': self.account_no_postfix,
+            'AFHR_FLPR_YN': 'N',
+            'OFL_YN': 'N',
+            'INQR_DVSN': '02', # INQR_DVSN 01: 대출일별, 02:종목별
+            'UNPR_DVSN': '01',
+            'FUND_STTL_ICLD_YN': 'N',
+            'FNCG_AMT_AUTO_RDPT_YN': 'N',
+            'PRCS_DVSN': '01',
+            'CTX_AREA_FK100': ctx_area_fk100,
+            'CTX_AREA_NK100': ctx_area_nk100
+        }
+
+        res = requests.get(url, headers=headers, params=params)
+        data = res.json()
+        # tr_cont 연속 거래 여부
+        # F or M : 다음 데이터 있음
+        # D or E : 마지막 데이터
+        data['tr_cont'] = res.headers['tr_cont']
+        return data
+    
+    def get_domestic_balance(self) -> dict:
+        """
+        Name:주식잔고조회
+
+        Args:
+
+        Returns:
+            dict: response data
+        """
+        output = {}
+
+        data = self._get_domestic_balance()
+
+        output['output1'] = data['output1']
+        output['output2'] = data['output2']
+
+        # 연속 조회
+        while data['tr_cont'] == 'M':
+            fk100 = data['ctx_area_fk100']
+            nk100 = data['ctx_area_nk100']
+
+            data = self._get_domestic_balance(fk100, nk100)
+            output['output1'].extend(data['output1'])
+            output['output2'].extend(data['output2'])
+
+        return output
+
+
+class Utill:
+    '''
+    utill 클래스
+    기타 보조 도구 클래스
+    '''
+    def __init__(self):
+        pass
+
+    def print_balance(jsonOrDict):
+        try:
+
+            # JSON 형식의 문자열인지 확인
+            if isinstance(jsonOrDict, str):
+                parsed = json.loads(jsonOrDict)
+            # 딕셔너리인지 확인
+            elif isinstance(jsonOrDict, dict):
+                parsed = jsonOrDict
+            else:
+                raise TypeError("Input must be a JSON string or a dictionary.")
+            
+            for item in parsed["output1"]:
+                print(f"{'종목번호'.ljust(10, chr(12288))}: {item['pdno']}")
+                print(f"{'종목명'.ljust(10, chr(12288))}: {item['prdt_name']}")
+                print(f"{'보유수량'.ljust(10, chr(12288))}: {int(item['hldg_qty']):,}")
+                print(f"{'매입평균가격'.ljust(10, chr(12288))}: {float(item['pchs_avg_pric']):,.2f}")
+                print(f"{'매입금액'.ljust(10, chr(12288))}: {int(item['pchs_amt']):,}")
+                print(f"{'현재가'.ljust(10, chr(12288))}: {int(item['prpr']):,}")
+                print(f"{'평가금액'.ljust(10, chr(12288))}: {int(item['evlu_amt']):,}")
+                print(f"{'평가손익금액'.ljust(10, chr(12288))}: {int(item['evlu_pfls_amt']):,}")
+                print(f"{'평가손익율'.ljust(10, chr(12288))}: {item['evlu_pfls_rt']}")
+                print("----------------")
+            print(" ")
+            for item in parsed["output2"]:
+                print(f"{'D+2 예수금'.ljust(12, chr(12288))}: {int(item['prvs_rcdl_excc_amt']):,}")
+                print(f"{'총평가금액'.ljust(10, chr(12288))}: {int(item['tot_evlu_amt']):,}")
+                print(f"{'매입금액합계금액'.ljust(10, chr(12288))}: {int(item['pchs_amt_smtl_amt']):,}")
+                print(f"{'평가금액합계금액'.ljust(10, chr(12288))}: {int(item['evlu_amt_smtl_amt']):,}")
+                print(f"{'평가손익합계금액'.ljust(10, chr(12288))}: {int(item['evlu_pfls_smtl_amt']):,}")
+
+
+        except json.JSONDecodeError as e:
+            print(f"Invalid JSON: {e}")
+        except TypeError as e:
+            print(f"TypeError: {e}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
 
 class UsaTray:
     '''
@@ -179,8 +362,8 @@ class UsaTray:
             raise ValueError("Account No 계좌번호는 비어 있을 수 없습니다. account_no")
         if '-' not in self.account_no:
             raise ValueError("계좌번호 형식이 잘못되었습니다. account_no 예: '12345678-01'")
-        if self.symbols is None or not self.symbols:
-            raise KeyError("종목 코드는 비어 있을 수 없습니다. symbols")
+        if not self.symbols:
+            raise ValueError("종목 코드는 비어 있을 수 없습니다. symbols")
             
     def get_icon_image(self):
         try:
@@ -243,10 +426,27 @@ class UsaTray:
     def do_balance(self):
         print("잔고조회 실행")
 
+        # 로그인
+        is_valid = self.kis_api.get_access_token()
+        
+        if not is_valid:
+            print("fail get_access_token : do_balance")
+            return
+        
+        time.sleep(1)
+        
+        # 잔고조회
+        balance = self.kis_api.get_domestic_balance()
+        Utill.print_balance(balance)
+        time.sleep(1)
+
+        return
+
     def do_trading(self):
         # 현재 시간 (서울 기준)
         now = datetime.now(ZoneInfo("Asia/Seoul"))
         print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] 자동매매 실행")
+        return
         
 if __name__ == '__main__':
     print("u-sa-v0001")
