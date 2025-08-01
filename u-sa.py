@@ -10,6 +10,8 @@ from datetime import time as dtime
 from zoneinfo import ZoneInfo
 import requests
 
+APP_VERSION = "0.0.1"
+
 # config.json, token.json, businesdate.json
 JSON_CONFIG_PATH = "config.json" 
 JSON_TOKEN_PATH = "token.json"
@@ -426,7 +428,7 @@ class UsaTray:
         print("테스트 기능 실행")
 
     def do_balance(self):
-        print("잔고조회 실행")
+        print(f"잔고조회 실행 version : {APP_VERSION}")
 
         # 로그인
         is_valid = self.kis_api.get_access_token()
