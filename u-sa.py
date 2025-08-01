@@ -18,6 +18,12 @@ JSON_BUSINESS_DATE_PATH = "businesdate.json"
 # 실전투자 url
 BASE_URL = "https://openapi.koreainvestment.com:9443"
 
+# 매수용 종목 코드 목록
+SIMBOL_LIST = [
+    "360750",
+] 
+
+
 class KisApi:
     '''
     한국투자증권 REST API
@@ -316,7 +322,6 @@ class UsaTray:
         self.app_key = ""
         self.app_secret = ""
         self.account_no = ""
-        self.symbols = None
         self.load_json_config()
         
         # KisApi 생성
@@ -349,7 +354,6 @@ class UsaTray:
                 self.app_key = config_data.get("app_key","")
                 self.app_secret = config_data.get("app_secret","")
                 self.account_no = config_data.get("account_no","")
-                self.symbols = config_data.get("symbols",None)
         else:
             raise FileNotFoundError("config.json 파일이 없습니다.")
         
@@ -362,8 +366,6 @@ class UsaTray:
             raise ValueError("Account No 계좌번호는 비어 있을 수 없습니다. account_no")
         if '-' not in self.account_no:
             raise ValueError("계좌번호 형식이 잘못되었습니다. account_no 예: '12345678-01'")
-        if not self.symbols:
-            raise ValueError("종목 코드는 비어 있을 수 없습니다. symbols")
             
     def get_icon_image(self):
         try:
@@ -446,6 +448,14 @@ class UsaTray:
         # 현재 시간 (서울 기준)
         now = datetime.now(ZoneInfo("Asia/Seoul"))
         print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] 자동매매 실행")
+
+        # 매도
+        # 1. 5% 익절
+
+        # 매수
+        # SIMBOL_LIST
+        # 종목별로 매일 1주 매수
+
         return
         
 if __name__ == '__main__':

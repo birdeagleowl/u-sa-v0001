@@ -4,8 +4,5 @@
   "_comment3": "파일 이름은 config.json으로 해야 합니다.",
   "app_key": "AbCdEfGh0123456789AbCdEfGh0123456789",
   "app_secret": "67890AbCdEfGh0123456789AbCdEfGh0123456789+7890AbCdEfGh0123456789AbCdEfGh0123456789AbCdEfGh0123456789AbCdEfGh0123456789+fGh0123456789AbCdEfGh0123456789AbCdEfGh0123456789/AbCdEfGh01=",
-  "account_no": "12345678-01",
-  "symbols": [
-    "360750"
-  ]
+  "account_no": "12345678-01"
 }
