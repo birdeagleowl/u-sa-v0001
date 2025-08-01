@@ -446,18 +446,49 @@ class UsaTray:
 
         return
 
+    # 자동매매 실행
+    # 1. 로그인
+    # 2. 휴일 확인
+    # 3. 영엽시간 확인
+    # 4. 매도
+    # 4-0 익절 5%
+    # 4-1 잔고 조회
+    # 4-2 익절 종목 선정
+    # 4-3 매도 가능 수량 조회
+    # 4-4 시장가 매도
+    # 5. 매수
+    # 5-0 매일 1주 매수 in SIMBOL_LIST
+    # 5-1 주문체결 조회
+    # 5-2 오늘 매수하지 않은 종목 선정
+    # 5-3 시장가 매수
     def do_trading(self):
         # 현재 시간 (서울 기준)
         now = datetime.now(ZoneInfo("Asia/Seoul"))
         print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] 자동매매 실행")
 
-        # 매도
-        # 1. 5% 익절
+        # 1. 로그인
+        is_valid = self.kis_api.get_access_token()
+        
+        if not is_valid:
+            print("fail get_access_token : do_balance")
+            return
 
-        # 매수
-        # SIMBOL_LIST
-        # 종목별로 매일 1주 매수
+        # 2. 휴일 확인
+        
+        # 3. 영엽시간 확인
 
+        # 4. 매도
+        # 4-0 익절 5%
+        # 4-1 잔고 조회
+        # 4-2 익절 종목 선정
+        # 4-3 매도 가능 수량 조회
+        # 4-4 시장가 매도
+
+        # 5. 매수
+        # 5-0 매일 1주 매수 in SIMBOL_LIST
+        # 5-1 주문체결 조회
+        # 5-2 오늘 매수하지 않은 종목 선정
+        # 5-3 시장가 매수
         return
         
 if __name__ == '__main__':
