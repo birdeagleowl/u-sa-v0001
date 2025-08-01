@@ -171,7 +171,7 @@ class KisApi:
             return True
 
     # [국내주식] 주문/계좌
-    def _get_domestic_balance(self, ctx_area_fk100: str = "", ctx_area_nk100: str = "") -> dict:
+    def get_domestic_balance(self, ctx_area_fk100: str = "", ctx_area_nk100: str = "") -> dict:
         """
         Name:주식잔고조회
         Args:
@@ -215,7 +215,7 @@ class KisApi:
         data['tr_cont'] = res.headers['tr_cont']
         return data
     
-    def get_domestic_balance(self) -> dict:
+    def get_domestic_balance_all(self) -> dict:
         """
         Name:주식잔고조회
 
@@ -226,7 +226,7 @@ class KisApi:
         """
         output = {}
 
-        data = self._get_domestic_balance()
+        data = self.get_domestic_balance()
 
         output['output1'] = data['output1']
         output['output2'] = data['output2']
@@ -236,7 +236,7 @@ class KisApi:
             fk100 = data['ctx_area_fk100']
             nk100 = data['ctx_area_nk100']
 
-            data = self._get_domestic_balance(fk100, nk100)
+            data = self.get_domestic_balance(fk100, nk100)
             output['output1'].extend(data['output1'])
             output['output2'].extend(data['output2'])
 
@@ -436,7 +436,7 @@ class UsaTray:
         time.sleep(1)
         
         # 잔고조회
-        balance = self.kis_api.get_domestic_balance()
+        balance = self.kis_api.get_domestic_balance_all()
         Utill.print_balance(balance)
         time.sleep(1)
 
