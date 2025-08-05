@@ -434,7 +434,7 @@ class UsaTray:
         is_valid = self.kis_api.get_access_token()
         
         if not is_valid:
-            print("fail get_access_token : do_balance")
+            print("로그인 실패 : do_balance")
             return
         
         time.sleep(1)
@@ -463,6 +463,7 @@ class UsaTray:
     # 5-3 시장가 매수
     def do_trading(self):
         # 현재 시간 (서울 기준)
+        # now는 Asia/Seoul 타임존 기준
         now = datetime.now(ZoneInfo("Asia/Seoul"))
         print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] 자동매매 실행")
 
@@ -470,12 +471,22 @@ class UsaTray:
         is_valid = self.kis_api.get_access_token()
         
         if not is_valid:
-            print("fail get_access_token : do_balance")
+            print("로그인 실패 : do_trading")
             return
 
         # 2. 휴일 확인
-        
-        # 3. 영엽시간 확인
+
+        # 3. 영업시간 확인
+        current_time = now.time()
+
+        start_time = dtime(9, 00)   # 비교값도 타임존 없이 정의
+        end_time = dtime(15, 20)
+
+        if start_time < current_time < end_time:
+            print("영업시간입니다.")
+        else:
+            print("영업시간이 아닙니다.")
+            return
 
         # 4. 매도
         # 4-0 익절 5%
