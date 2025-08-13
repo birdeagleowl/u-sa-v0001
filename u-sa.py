@@ -97,20 +97,50 @@ class KisApi:
                 self.access_token_token_expired = token_data.get("access_token_token_expired","")
 
     def load_json_business_date(self):
+        # {
+        #     "ctx_area_nk": "20250823            ",
+        #     "ctx_area_fk": "20250731            ",
+        #     "output": 
+        #         [
+        #                 {
+        #                 "bass_dt": "20250731",
+        #                 "wday_dvsn_cd": "05",
+        #                 "bzdy_yn": "Y",
+        #                 "tr_day_yn": "Y",
+        #                 "opnd_yn": "Y",
+        #                 "sttl_day_yn": "Y"
+        #                 },
+        #                 {
+        #                 "bass_dt": "20250801",
+        #                 "wday_dvsn_cd": "06",
+        #                 "bzdy_yn": "Y",
+        #                 "tr_day_yn": "Y",
+        #                 "opnd_yn": "Y",
+        #                 "sttl_day_yn": "Y"
+        #                 },
+        #                 ........
+        #                 {
+        #                 "bass_dt": "20250823",
+        #                 "wday_dvsn_cd": "07",
+        #                 "bzdy_yn": "N",
+        #                 "tr_day_yn": "Y",
+        #                 "opnd_yn": "N",
+        #                 "sttl_day_yn": "N"
+        #                 }
+        #         ],
+        #     "rt_cd": "0",
+        #     "msg_cd": "KIOK0500",
+        #     "msg1": "조회가 계속됩니다..다음버튼을 Click 하십시오.                                   "
+        # }
         if not os.path.exists(self.json_business_date_path):
             with open(self.json_business_date_path, "w", encoding="utf-8") as f:
-                # "output": [
-                # bass_dt: str    #기준일자
-                # wday_dvsn_cd: str    #요일구분코드
-                # bzdy_yn: str    #영업일여부
-                # tr_day_yn: str    #거래일여부
-                # opnd_yn: str    #개장일여부
-                # sttl_day_yn: str    #결제일여부
-                #]
-
-                # {"output": []}
                 business_date_data = {
-                    "output": []
+                    "ctx_area_nk": "",
+                    "ctx_area_fk": "",
+                    "output": [],
+                    "rt_cd": "0",
+                    "msg_cd": "KIOK0500",
+                    "msg1": ""
                 }
                 json.dump(business_date_data, f, ensure_ascii=False, indent=2)
         else:
@@ -121,8 +151,8 @@ class KisApi:
         """
         Name:접근토큰발급
         """
-        path = "oauth2/tokenP"
-        url = f"{self.base_url}/{path}"
+        path = "/oauth2/tokenP"
+        url = f"{self.base_url}{path}"
 
         headers = {"content-type": "application/json"}
         data = {
@@ -249,6 +279,124 @@ class KisApi:
             output['output2'].extend(data['output2'])
 
         return output
+
+    # 24일치 영엽일 확인 가능함
+    # {
+    #     "ctx_area_nk": "20250611            ",
+    #     "ctx_area_fk": "20250519            ",
+    #     "output": [
+    #         {
+    #             "bass_dt": "20250519",        
+    #             "wday_dvsn_cd": "02",
+    #             "bzdy_yn": "Y",
+    #             "tr_day_yn": "Y",
+    #             "opnd_yn": "Y",
+    #             "sttl_day_yn": "Y"
+    #         },
+    #         ........
+    #         {
+    #             "bass_dt": "20250611",
+    #             "wday_dvsn_cd": "04",
+    #             "bzdy_yn": "Y",
+    #             "tr_day_yn": "Y",
+    #             "opnd_yn": "Y",
+    #             "sttl_day_yn": "Y"
+    #         }
+    #     ],
+    #     "rt_cd": "0",
+    #     "msg_cd": "KIOK0500",
+    #     "msg1": "조회가 계속됩니다..다음버튼을 Click 하십시오.                                   "
+    # }
+    def get_domestic_chk_holiday(self, base_dt=None, ctx_area_fk: str = "", ctx_area_nk: str = ""):
+        """
+        Name:국내휴장일조회
+        가능 하면 하루에 한번만 요청
+        모의투자 미지원
+        default today YYYYMMDD
+        Args:
+            ctx_area_fk (str): 공란
+        """
+        print("get_domestic_chk_holiday")
+        path = "/uapi/domestic-stock/v1/quotations/chk-holiday"
+        url = f"{self.base_url}{path}"
+        headers = {
+           "content-type": "application/json",
+           "authorization": self.authorization,
+           "appKey": self.app_key,
+           "appSecret": self.app_secret,
+           "tr_id": "CTCA0903R"
+        }
+
+        if base_dt is None:
+            base_dt = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m%d")   # 시작일자 값이 없으면 현재일자
+        
+        params = {
+            'BASS_DT': base_dt,
+            "CTX_AREA_FK": ctx_area_fk,  # 공란
+            "CTX_AREA_NK": ctx_area_nk  # 공란
+        }
+
+        res = requests.get(url, headers=headers, params=params)
+        data = res.json()
+        self.business_date_data = data
+        
+        with open(self.json_business_date_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        return data
+    
+    def get_today_opnd_yn(self) -> str | None:
+        """
+        Name:오늘 국내휴장일조회 :: 국내휴장일조회 api 응용
+        """
+        try:
+            # 오늘 날짜 (Asia/Seoul 기준) yyyyMMdd 형식으로 구함
+            today_str = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m%d")
+            print(f"오늘은 : {today_str} : get_today_opnd_yn")
+
+            # output 리스트를 순회하면서 오늘 날짜에 해당하는 데이터 찾기
+            # 메모리 확인
+            if not self.business_date_data:
+                # 메모리에 없으면 요청 - 오늘 기준
+                print("[1] 메모리에 없으면 요청")
+                self.get_domestic_chk_holiday(base_dt=today_str,ctx_area_fk="",ctx_area_nk="")
+
+            tmp_data = self.business_date_data
+            tmp_output = tmp_data.get("output")
+            # output 정보 확인
+            # 빈 파일을 로드 한 경우 또는 output 없는 경우
+            if not tmp_output:
+                # output 정보가 없으면 다시 요청 - 오늘 기준
+                print("[2] output 정보가 없으면 다시 요청")
+                self.get_domestic_chk_holiday(base_dt=today_str,ctx_area_fk="",ctx_area_nk="")
+            else:
+                pass
+            
+            data = self.business_date_data
+            for item in data.get("output", []):
+                if item.get("bass_dt") == today_str:
+                    print("[3] 오늘 정보 있음")
+                    return item.get("opnd_yn")
+                
+            # 오늘에 대한 정보가 없는 경우 - 로드한 data가 오래된 경우
+            # 다시 요청
+            self.get_domestic_chk_holiday(base_dt=today_str,ctx_area_fk="",ctx_area_nk="")
+            
+            # 다시 한번 확인
+            data = self.business_date_data
+            for item in data.get("output", []):
+                if item.get("bass_dt") == today_str:
+                    print("[4] 오늘 정보 있음")
+                    return item.get("opnd_yn")
+            
+            # 못찾으면 None 리턴
+            print("[5] 오늘 정보 없음")
+            return None
+        except Exception as e:
+            # 예외 처리
+            print("[6] 예외")
+            print(f"{e}")
+            return None
 
 
 class Utill:
@@ -426,6 +574,27 @@ class UsaTray:
 
     def do_test(self):
         print("테스트 기능 실행")
+        now = datetime.now(ZoneInfo("Asia/Seoul"))
+        print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] 테스트 실행")
+
+        # 1. 로그인
+        is_valid = self.kis_api.get_access_token()
+        
+        if not is_valid:
+            print("로그인 실패 : do_trading")
+            return
+
+        # 2. 휴일 확인
+        open_yn = self.kis_api.get_today_opnd_yn()
+        if open_yn is None:
+            print(f"확인 실패 : open_yn=None")
+            return
+        elif open_yn != 'Y':
+            print(f"휴일 : open_yn={open_yn}")
+            return
+        else:
+            print(f"영업일 : open_yn={open_yn}")
+            pass
 
     def do_balance(self):
         print(f"잔고조회 실행 version : {APP_VERSION}")
@@ -475,6 +644,17 @@ class UsaTray:
             return
 
         # 2. 휴일 확인
+        open_yn = self.kis_api.get_today_opnd_yn()
+        if open_yn is None:
+            print(f"확인 실패 : open_yn=None")
+            return
+        elif open_yn != 'Y':
+            print(f"휴일 : open_yn={open_yn}")
+            return
+        else:
+            print(f"영업일 : open_yn={open_yn}")
+            pass
+
 
         # 3. 영업시간 확인
         current_time = now.time()
