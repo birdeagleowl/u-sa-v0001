@@ -25,7 +25,6 @@ SIMBOL_LIST = [
     "360750",
 ] 
 
-
 class KisApi:
     '''
     한국투자증권 REST API
@@ -397,6 +396,35 @@ class KisApi:
             print("[6] 예외")
             print(f"{e}")
             return None
+        
+    def get_domestic_psbl_sell(self, symbol: str):
+        """
+        Name:매도가능수량조회
+        모의투자 미지원
+        Args:
+            symbol (str): symbol 보유종목 코드
+        """
+        path = "/uapi/domestic-stock/v1/trading/inquire-psbl-sell"
+        url = f"{self.base_url}{path}"
+        headers = {
+           "content-type": "application/json",
+           "authorization": self.authorization,
+           "appKey": self.app_key,
+           "appSecret": self.app_secret,
+           "tr_id": "TTTC8408R" #모의투자 미지원
+        }
+        params = {
+            'CANO': self.account_no_prefix,
+            'ACNT_PRDT_CD': self.account_no_postfix,
+            'PDNO': symbol
+        }
+
+        res = requests.get(url, headers=headers, params=params)
+        data = res.json()
+        # ord_psbl_qty 에서 확인 가능
+
+        return data
+    
 
 
 class Utill:
@@ -642,6 +670,8 @@ class UsaTray:
         if not is_valid:
             print("로그인 실패 : do_trading")
             return
+        
+        time.sleep(0.5)
 
         # 2. 휴일 확인
         open_yn = self.kis_api.get_today_opnd_yn()
@@ -655,6 +685,7 @@ class UsaTray:
             print(f"영업일 : open_yn={open_yn}")
             pass
 
+        time.sleep(0.5)
 
         # 3. 영업시간 확인
         current_time = now.time()
@@ -668,12 +699,61 @@ class UsaTray:
             print("영업시간이 아닙니다.")
             return
 
-        # 4. 매도
+        # 4. 매도 
         # 4-0 익절 5%
         # 4-1 잔고 조회
         # 4-2 익절 종목 선정
         # 4-3 매도 가능 수량 조회
         # 4-4 시장가 매도
+
+        # 4-1 잔고 조회
+        balance = self.kis_api.get_domestic_balance_all()
+            
+        # 매도 대상 종목 저장용 list
+        sell_pdno_list = []
+        no_i = 0
+        for item in balance["output1"]:
+            no_i = no_i + 1
+            # print(f"{'NO'.ljust(10, chr(12288))}: {no_i}")
+            # print(f"{'종목번호'.ljust(10, chr(12288))}: {item['pdno']}")
+            # print(f"{'종목명'.ljust(10, chr(12288))}: {item['prdt_name']}")
+            # print(f"{'보유수량'.ljust(10, chr(12288))}: {int(item['hldg_qty']):,}")
+            # print(f"{'평가손익율'.ljust(10, chr(12288))}: {item['evlu_pfls_rt']}")
+            # print("----------------")
+
+            # 4-2 익절 종목 선정
+            evlu_rt = float(item['evlu_pfls_rt'])
+            if evlu_rt > 5.0:
+                # 5% 이상 종목 저장
+                sell_pdno_list.append(item['pdno'])
+        
+        time.sleep(0.5)
+
+        # 4-3 매도 가능 수량 조회
+        for i_symbol in sell_pdno_list:
+            print(f"{'매도종목'.ljust(10, chr(12288))}: {i_symbol}")
+            
+            # 4-3 매도 가능 수량 조회
+            res_json_psbl_sell = self.kis_api.get_domestic_psbl_sell(i_symbol)
+
+            rt_cd = res_json_psbl_sell['rt_cd']
+            ord_psbl_qty = 0
+            if rt_cd == '0':
+                output = res_json_psbl_sell['output']
+                ord_psbl_qty = int(output['ord_psbl_qty'])
+
+            time.sleep(0.5)
+
+            # 4-4 시장가 매도
+            # 매도 가능 수량이 있으면 시장가 매도
+            
+            if ord_psbl_qty > 0:
+                pass
+                # resp_sell_order = self.kis_api.set_market_price_sell_order(symbol=i_symbol,quantity=ord_psbl_qty)
+
+            time.sleep(0.5)   
+
+        # 매도 끝
 
         # 5. 매수
         # 5-0 매일 1주 매수 in SIMBOL_LIST
