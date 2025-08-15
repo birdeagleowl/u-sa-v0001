@@ -396,7 +396,30 @@ class KisApi:
             print("[6] 예외")
             print(f"{e}")
             return None
-        
+    
+    """
+    {
+        'output': 
+            {
+                'pdno': '360750', 
+                'prdt_name': 'TIGER 미국S&P500', 
+                'buy_qty': '0', 
+                'sll_qty': '0', 
+                'cblc_qty': '2', 
+                'nsvg_qty': '0', 
+                'ord_psbl_qty': '2', 
+                'pchs_avg_pric': '22020.0000', 
+                'pchs_amt': '44040', 
+                'now_pric': '22145', 
+                'evlu_amt': '44290', 
+                'evlu_pfls_amt': '250', 
+                'evlu_pfls_rt': '0.56'
+            }, 
+        'rt_cd': '0', 
+        'msg_cd': 'KIOK0420', 
+        'msg1': '정상적으로 조회되었습니다                                                       '
+    }
+    """
     def get_domestic_psbl_sell(self, symbol: str):
         """
         Name:매도가능수량조회
@@ -425,8 +448,6 @@ class KisApi:
 
         return data
     
-
-
 class Utill:
     '''
     utill 클래스
@@ -612,18 +633,19 @@ class UsaTray:
             print("로그인 실패 : do_trading")
             return
 
-        # 2. 휴일 확인
-        open_yn = self.kis_api.get_today_opnd_yn()
-        if open_yn is None:
-            print(f"확인 실패 : open_yn=None")
-            return
-        elif open_yn != 'Y':
-            print(f"휴일 : open_yn={open_yn}")
-            return
-        else:
-            print(f"영업일 : open_yn={open_yn}")
-            pass
+        # 2. 매도 가능 수량 확인 테스트
+        res_json_psbl_sell = self.kis_api.get_domestic_psbl_sell("360750")
+        print("get_domestic_psbl_sell 360750")
+        print(res_json_psbl_sell)
 
+        rt_cd = res_json_psbl_sell['rt_cd']
+        ord_psbl_qty = 0
+        if rt_cd == '0':
+            output = res_json_psbl_sell['output']
+            ord_psbl_qty = int(output['ord_psbl_qty'])
+            print(ord_psbl_qty)
+
+            
     def do_balance(self):
         print(f"잔고조회 실행 version : {APP_VERSION}")
 
