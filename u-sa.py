@@ -145,6 +145,27 @@ class KisApi:
         else:
             with open(self.json_business_date_path, "r", encoding="utf-8") as f:
                 self.business_date_data = json.load(f)
+
+    # OAuth인증
+    def get_hashkey(self, data: dict):
+        """
+        Name:Hashkey
+        Args:
+            data (dict): POST 요청 데이터
+        Returns:
+            haskkey
+        """
+        path = "/uapi/hashkey"
+        url = f"{self.base_url}{path}"
+        headers = {
+           "content-type": "application/json",
+           "appKey": self.app_key,
+           "appSecret": self.app_secret,
+           "User-Agent": "Mozilla/5.0"
+        }
+        resp = requests.post(url, headers=headers, data=json.dumps(data))
+        haskkey = resp.json()["HASH"]
+        return haskkey
     
     def get_access_token(self) -> bool:
         """
@@ -219,7 +240,7 @@ class KisApi:
         Returns:
             실전: 최대 50건 이후 연속조회
             모의: 최대 20건 이후 연속조회
-            dict: _description_
+            dict: 
         """
         path = "/uapi/domestic-stock/v1/trading/inquire-balance"
         url = f"{self.base_url}{path}"
@@ -423,9 +444,8 @@ class KisApi:
     def get_domestic_psbl_sell(self, symbol: str):
         """
         Name:매도가능수량조회
-        모의투자 미지원
         Args:
-            symbol (str): symbol 보유종목 코드
+            symbol (str): 종목코드
         """
         path = "/uapi/domestic-stock/v1/trading/inquire-psbl-sell"
         url = f"{self.base_url}{path}"
@@ -434,7 +454,7 @@ class KisApi:
            "authorization": self.authorization,
            "appKey": self.app_key,
            "appSecret": self.app_secret,
-           "tr_id": "TTTC8408R" #모의투자 미지원
+           "tr_id": "TTTC8408R"
         }
         params = {
             'CANO': self.account_no_prefix,
@@ -447,6 +467,114 @@ class KisApi:
         # ord_psbl_qty 에서 확인 가능
 
         return data
+    
+    
+    def set_domestic_order_cash(self, side: str, symbol: str, price: int,
+                     quantity: int, order_type: str) -> dict:
+        """
+        Name:주식주문(현금)
+
+        Args:
+            side (str): 매수 "buy" 또는 매도(else, "", "sell")
+            symbol (str): 종목코드
+            price (int): 가격
+            quantity (int): 수량
+            order_type (str): 00(지정가), 01(시장가)
+
+        Returns:
+            dict: 
+        """
+        path = "/uapi/domestic-stock/v1/trading/order-cash"
+        url = f"{self.base_url}{path}"
+
+        # 매수 : TTTC0012U (구버전 TTTC0802U)
+        # 매도 : TTTC0011U (구버전 TTTC0801U)
+        tr_id = "TTTC0012U" if side == "buy" else "TTTC0011U"
+
+        # 주문 단가 : 시장가 주문시 0으로 설정
+        unpr = "0" if order_type == "01" else str(price)
+
+        data = {
+            "CANO": self.account_no_prefix,
+            "ACNT_PRDT_CD": self.account_no_postfix,
+            "PDNO": symbol,
+            "ORD_DVSN": order_type,
+            "ORD_QTY": str(quantity),
+            "ORD_UNPR": unpr
+        }
+        hashkey = self.get_hashkey(data)
+        headers = {
+           "content-type": "application/json",
+           "authorization": self.authorization,
+           "appKey": self.app_key,
+           "appSecret": self.app_secret,
+           "tr_id": tr_id,
+           "custtype": "P",
+           "hashkey": hashkey
+        }
+        resp = requests.post(url, headers=headers, data=json.dumps(data))
+        return resp.json()
+
+    def set_market_price_buy_order(self, symbol: str, quantity: int) -> dict:
+        """
+        Name:시장가 매수
+
+        Args:
+            symbol (str): 종목코드
+            quantity (int): 수량
+
+        Returns:
+            dict: 
+        """
+        resp = self.set_domestic_order_cash("buy", symbol, 0, quantity, "01")
+        return resp
+
+
+    def set_market_price_sell_order(self, symbol: str, quantity: int) -> dict:
+        """
+        Name:시장가 매도
+
+        Args:
+            symbol (str): 종목코드
+            quantity (int): 수량
+
+        Returns:
+            dict: 
+        """
+        resp = self.set_domestic_order_cash("sell", symbol, 0, quantity, "01")
+        
+        return resp
+
+    def set_limit_price_buy_order(self, symbol: str, price: int, quantity: int) -> dict:
+        """
+        Name:지정가 매수
+
+        Args:
+            symbol (str): 종목코드
+            price (int): 가격
+            quantity (int): 수량
+
+        Returns:
+            dict: 
+        """
+        resp = self.set_domestic_order_cash("buy", symbol, price, quantity, "00")
+        
+        return resp
+
+    def set_limit_price_sell_order(self, symbol: str, price: int, quantity: int) -> dict:
+        """
+        Name:지정가 매도
+
+        Args:
+            symbol (str): 종목코드
+            price (int): 가격
+            quantity (int): 수량
+
+        Returns:
+            dict: _description_
+        """
+        resp = self.set_domestic_order_cash("sell", symbol, price, quantity, "00")
+        return resp
     
 class Utill:
     '''
@@ -645,7 +773,16 @@ class UsaTray:
             ord_psbl_qty = int(output['ord_psbl_qty'])
             print(ord_psbl_qty)
 
-            
+        # 3. 매도 테스트
+        # resp_sell_order = self.kis_api.set_market_price_sell_order(symbol="360750",quantity=ord_psbl_qty)
+        # rt_cd_sell_order = resp_sell_order['rt_cd']
+        # if rt_cd_sell_order == '0':
+        #     print("시장가 매도 주문 성공")
+        # else:
+        #     print("시장가 매도 주문 실패")
+
+        # print(resp_sell_order)
+
     def do_balance(self):
         print(f"잔고조회 실행 version : {APP_VERSION}")
 
@@ -751,7 +888,7 @@ class UsaTray:
         
         time.sleep(0.5)
 
-        # 4-3 매도 가능 수량 조회
+        # 4-3 매도 가능 수량 조회 : 익절 종목을 대상으로
         for i_symbol in sell_pdno_list:
             print(f"{'매도종목'.ljust(10, chr(12288))}: {i_symbol}")
             
@@ -768,12 +905,15 @@ class UsaTray:
 
             # 4-4 시장가 매도
             # 매도 가능 수량이 있으면 시장가 매도
-            
             if ord_psbl_qty > 0:
-                pass
-                # resp_sell_order = self.kis_api.set_market_price_sell_order(symbol=i_symbol,quantity=ord_psbl_qty)
+                resp_sell_order = self.kis_api.set_market_price_sell_order(symbol=i_symbol,quantity=ord_psbl_qty)
+                rt_cd_sell_order = resp_sell_order['rt_cd']
+                if rt_cd_sell_order == '0':
+                    print("시장가 매도 주문 성공")
+                else:
+                    print("시장가 매도 주문 실패")
 
-            time.sleep(0.5)   
+                time.sleep(0.5)
 
         # 매도 끝
 
