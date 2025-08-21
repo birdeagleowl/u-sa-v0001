@@ -576,6 +576,97 @@ class KisApi:
         resp = self.set_domestic_order_cash("sell", symbol, price, quantity, "00")
         return resp
     
+    
+    # 주문 없는 경우
+    # {
+    #     "ctx_area_fk100": "xxxxxxxx^01^20250519^20250519^ ^00^01^KRX^                                                          ",
+    #     "ctx_area_nk100": "                                                                                                    ",
+    #     "output1": [],
+    #     "output2": {
+    #         "tot_ord_qty": "0",
+    #         "tot_ccld_qty": "0",
+    #         "tot_ccld_amt": "0",
+    #         "prsm_tlex_smtl": "0",
+    #         "pchs_avg_pric": "0.0000"
+    #     },
+    #     "rt_cd": "0",
+    #     "msg_cd": "KIOK0560",
+    #     "msg1": "조회할 내용이 없습니다                                                          "
+    # }
+    # 체결된 주문이 있는 경우
+    # {
+    #     "ctx_area_fk100": "63000000^01^20250521^20250521^ ^00^01^KRX^                                                          ",
+    #     "ctx_area_nk100": "                                                                                                    ",
+    #     "output1": [
+    #         {
+    #             "ord_dt": "20250521",
+    #              ........
+    #             "sll_buy_dvsn_cd_name": "현금매도",
+    #             "pdno": "360750",
+    #             "prdt_name": "TIGER 미국S&P500",
+    #             "ord_qty": "1",
+    #              ........
+    #             "stpm_efct_occr_dtmd": ""
+    #         }
+    #     ],
+    #     "output2": {
+    #         "tot_ord_qty": "0",
+    #              ........
+    #         "pchs_avg_pric": "20390.0000"
+    #     },
+    #     "rt_cd": "0",
+    #     "msg_cd": "KIOK0510",
+    #     "msg1": "조회가 완료되었습니다                                                           "
+    # }
+    def get_domestic_daily_ccld(self, inqr_strt_dt=None, inqr_end_dt=None, ctx_area_fk100: str = "", ctx_area_nk100: str = ""):
+        """
+        Name:주식일별주문체결조회
+        모의투자 미지원
+        3개월이내만
+        inqr_strt_dt 없으면 오늘 YYYYMMDD
+        inqr_end_dt 없으면 오늘 YYYYMMDD
+        ctx_area_fk100 공란으로 하고 최초 조회만 사용한다.
+        Args:
+            ctx_area_fk100 (str): 연속조회검색조건100
+            공란 : 최초 조회시 
+            이전 조회 Output CTX_AREA_FK100 값 : 다음페이지 조회시(2번째부터)
+        """
+        path = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
+        url = f"{self.base_url}{path}"
+        headers = {
+           "content-type": "application/json",
+           "authorization": self.authorization,
+           "appKey": self.app_key,
+           "appSecret": self.app_secret,
+           "tr_id": "TTTC0081R" # 01:3개월 이내 국내주식체결내역
+        }
+
+        if inqr_strt_dt is None:
+            inqr_strt_dt = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m%d") # 시작일자 값이 없으면 현재일자
+        if inqr_end_dt is None:
+            inqr_end_dt  = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m%d") # 종료일자 값이 없으면 현재일자
+
+        params = {
+            'CANO': self.account_no_prefix,
+            'ACNT_PRDT_CD': self.account_no_postfix,
+            "INQR_STRT_DT": inqr_strt_dt,           # 조회시작일자
+            "INQR_END_DT": inqr_end_dt,             # 조회종료일자
+            "SLL_BUY_DVSN_CD": "00",                # 매도매수구분코드 00:전체 01:매도, 02:매수
+            "INQR_DVSN": "01",                      # 조회구분(정렬순서)  00:역순, 01:정순
+            "PDNO": "",                             # 종목번호(6자리)
+            "CCLD_DVSN": "00",                      # 체결구분 00:전체, 01:체결, 02:미체결
+            "ORD_GNO_BRNO": "",                     # 사용안함
+            "ODNO": "",                             # 주문번호
+            "INQR_DVSN_3": "00",                    # 조회구분3 00:전체, 01:현금, 02:융자, 03:대출, 04:대주
+            "INQR_DVSN_1": "0",                     # 조회구분1 공란 : 전체, 1 : ELW, 2 : 프리보드
+            "CTX_AREA_FK100": ctx_area_fk100,       # 공란 : 최초 조회시 이전 조회 Output CTX_AREA_FK100 값 : 다음페이지 조회시(2번째부터)
+            "CTX_AREA_NK100": ctx_area_nk100        # 공란 : 최초 조회시 이전 조회 Output CTX_AREA_NK100 값 : 다음페이지 조회시(2번째부터)
+        }
+
+        res = requests.get(url, headers=headers, params=params)
+        data = res.json()
+        return data
+    
 class Utill:
     '''
     utill 클래스
@@ -783,6 +874,29 @@ class UsaTray:
 
         # print(resp_sell_order)
 
+        # 4. 오늘 주문체결 조회 테스트
+        simbol_list_bought = []
+
+        resp_daily_ccld_data = self.kis_api.get_domestic_daily_ccld()
+        print(resp_daily_ccld_data)
+        tmp_daily_ccld_output = resp_daily_ccld_data.get("output1")
+        if tmp_daily_ccld_output:
+            for order in tmp_daily_ccld_output:
+                if order.get("sll_buy_dvsn_cd_name") == "현금매수":
+                    simbol_list_bought.append(order.get("pdno",""))
+
+        # 5. 오늘 매수하지 않은 종목 선정 -> (현금) 시장가 매수 테스트
+        # for i_symbol in SIMBOL_LIST:
+        #     if i_symbol not in simbol_list_bought:
+        #         # 1주 매수
+        #         resp_buy_order = self.kis_api.set_market_price_buy_order(symbol=i_symbol, quantity=1)
+        #         print(resp_buy_order)
+        #         rt_cd_buy_order = resp_buy_order['rt_cd']
+        #         if rt_cd_buy_order == '0':
+        #             print("시장가 매수 주문 성공")
+        #         else:
+        #             print("시장가 매수 주문 실패")
+
     def do_balance(self):
         print(f"잔고조회 실행 version : {APP_VERSION}")
 
@@ -863,7 +977,7 @@ class UsaTray:
         # 4-1 잔고 조회
         # 4-2 익절 종목 선정
         # 4-3 매도 가능 수량 조회
-        # 4-4 시장가 매도
+        # 4-4 (현금) 시장가 매도
 
         # 4-1 잔고 조회
         balance = self.kis_api.get_domestic_balance_all()
@@ -903,7 +1017,7 @@ class UsaTray:
 
             time.sleep(0.5)
 
-            # 4-4 시장가 매도
+            # 4-4 (현금) 시장가 매도
             # 매도 가능 수량이 있으면 시장가 매도
             if ord_psbl_qty > 0:
                 resp_sell_order = self.kis_api.set_market_price_sell_order(symbol=i_symbol,quantity=ord_psbl_qty)
@@ -921,7 +1035,35 @@ class UsaTray:
         # 5-0 매일 1주 매수 in SIMBOL_LIST
         # 5-1 주문체결 조회
         # 5-2 오늘 매수하지 않은 종목 선정
-        # 5-3 시장가 매수
+        # 5-3 (현금) 시장가 매수
+
+        # 5-1 주문체결 조회
+        # 오늘 매수한 종목 리스트 작성(현금매수만 사용)
+        simbol_list_bought = []
+
+        resp_daily_ccld_data = self.kis_api.get_domestic_daily_ccld()
+        tmp_daily_ccld_output = resp_daily_ccld_data.get("output1")
+        if tmp_daily_ccld_output:
+            for order in tmp_daily_ccld_output:
+                if order.get("sll_buy_dvsn_cd_name") == "현금매수":
+                    simbol_list_bought.append(order.get("pdno",""))
+
+        # 5-2 오늘 매수하지 않은 종목 선정
+        # 5-3 (현금) 시장가 매수
+        for i_symbol in SIMBOL_LIST:
+            if i_symbol not in simbol_list_bought:
+                # 1주 매수
+                resp_buy_order = self.kis_api.set_market_price_buy_order(symbol=i_symbol, quantity=1)
+                rt_cd_buy_order = resp_buy_order['rt_cd']
+                if rt_cd_buy_order == '0':
+                    print("시장가 매수 주문 성공")
+                else:
+                    print("시장가 매수 주문 실패")
+
+                time.sleep(0.5)
+
+        #  매수 끝
+
         return
         
 if __name__ == '__main__':
