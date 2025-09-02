@@ -192,3 +192,11 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# json
+# JSON_CONFIG_PATH = "config.json" 
+# JSON_TOKEN_PATH = "token.json"
+# JSON_BUSINESS_DATE_PATH = "businesdate.json"
+config.json
+token.json
+businesdate.json
